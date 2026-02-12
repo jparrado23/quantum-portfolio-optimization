@@ -1,0 +1,121 @@
+# Portfolio Optimization Configuration
+
+# Data Configuration
+data:
+  source: "yahoo_finance"
+  tickers:
+    - "AAPL"  # Apple
+    - "MSFT"  # Microsoft
+    - "GOOGL" # Google
+    - "AMZN"  # Amazon
+    - "META"  # Meta
+    - "NVDA"  # Nvidia
+    - "TSLA"  # Tesla
+    - "AMD"   # AMD
+    - "INTC"  # Intel
+    - "CRM"   # Salesforce
+  start_date: "2020-01-01"
+  end_date: "2025-01-28"
+  frequency: "daily"  # Options: daily, weekly, monthly
+  
+# Problem Configuration
+problem:
+  objective: "maximize_sharpe"  # Options: maximize_sharpe, minimize_variance, maximize_return
+  risk_free_rate: 0.04  # 4% annual risk-free rate (approximate)
+  cardinality: 5  # Number of assets to select
+  max_weight: 0.30  # Maximum weight per asset (30%)
+  min_weight: 0.05  # Minimum weight for selected assets
+  budget: 1.0  # Total budget (weights sum to 1)
+  allow_short: false  # Long-only constraint
+
+# Classical Optimization
+classical:
+  markowitz:
+    method: "SLSQP"
+    max_iter: 1000
+    tolerance: 1e-8
+  
+  genetic_algorithm:
+    population_size: 100
+    generations: 200
+    mutation_rate: 0.1
+    crossover_rate: 0.8
+    elite_size: 10
+    
+  simulated_annealing:
+    initial_temp: 1000
+    cooling_rate: 0.95
+    iterations: 5000
+    
+  risk_parity:
+    max_iter: 1000
+    tolerance: 1e-6
+
+# Quantum Optimization
+quantum:
+  backend: "statevector"  # Options: statevector, qasm_simulator, ibm_quantum
+  
+  qaoa:
+    p: 5  # Number of QAOA layers
+    shots: 1024
+    optimizer: "COBYLA"
+    max_iter: 200
+    initial_params: "random"  # Options: random, heuristic
+    reps: 3  # Number of optimization runs (take best)
+    
+  vqe:
+    ansatz: "efficient_su2"
+    optimizer: "COBYLA"
+    max_iter: 300
+    shots: 2048
+    
+  qubo:
+    penalty_lambda: 10.0  # Penalty for constraint violations
+    risk_aversion: 0.5  # Balance between return and risk (0-1)
+
+# Statistical Analysis
+statistics:
+  confidence_level: 0.95
+  var_method: "historical"  # Options: historical, parametric, cornish_fisher
+  cvar_alpha: 0.05
+  rolling_window: 252  # Trading days (1 year)
+  rebalance_frequency: "quarterly"  # Options: daily, weekly, monthly, quarterly
+  transaction_cost: 0.001  # 10 basis points
+
+# Backtesting
+backtesting:
+  train_period: 756  # 3 years of trading days
+  test_period: 252  # 1 year
+  walk_forward: true
+  include_transaction_costs: true
+
+# Visualization
+visualization:
+  plot_style: "seaborn-v0_8-darkgrid"
+  figsize: [12, 8]
+  dpi: 300
+  save_format: "png"
+  color_palette: "husl"
+
+# LLM Configuration (optional)
+llm:
+  provider: "openai"  # Options: openai, anthropic, local
+  model: "gpt-4"
+  temperature: 0.7
+  max_tokens: 500
+  enable_chatbot: false
+  enable_explainer: true
+
+# Logging
+logging:
+  level: "INFO"  # Options: DEBUG, INFO, WARNING, ERROR
+  file: "logs/portfolio_optimization.log"
+  console: true
+
+# Output
+output:
+  save_results: true
+  results_dir: "results"
+  save_plots: true
+  plots_dir: "plots"
+  generate_report: true
