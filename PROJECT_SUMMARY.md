@@ -7,7 +7,6 @@ This repository demonstrates a **complete portfolio optimization pipeline** comp
 - ✨ **Quantum Computing** (QAOA implementation)
 - 📊 **Statistical Analysis** (comprehensive risk metrics)
 - 🎯 **Operations Research** (multiple optimization algorithms)
-- 🤖 **Machine Learning** (LLM integration)
 
 ## What Makes This Project Stand Out
 
@@ -59,7 +58,6 @@ quantum-portfolio-optimization/
 │   ├── classical/           # Markowitz, GA, SA
 │   ├── quantum/             # QAOA, QUBO encoding
 │   ├── statistics/          # Risk metrics, analysis
-│   ├── llm/                 # Portfolio explainer
 │   └── utils/               # Data loader, visualization
 ├── notebooks/
 │   └── 01-complete-demo.ipynb  # Full demonstration
@@ -169,12 +167,6 @@ Example results from demo notebook:
 - **Configuration**: YAML-based settings
 - **Testing**: Runnable examples in `__main__`
 
-### 5. Machine Learning (LLM)
-- **Natural language generation**: Portfolio explanations
-- **Prompt engineering**: Structured outputs
-- **API integration**: OpenAI compatibility
-- **Fallback handling**: Mock mode for demos
-
 ## Use Cases
 
 1. **Research**: Compare optimization algorithms
@@ -204,7 +196,6 @@ Potential extensions:
 - **Matplotlib/Seaborn**: Visualization
 - **yfinance**: Financial data API
 - **CVXPY**: Convex optimization
-- **OpenAI API**: Language models (optional)
 
 ## Educational Value
 

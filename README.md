@@ -11,7 +11,6 @@ This project solves the portfolio optimization problem: selecting a subset of as
 - ⚛️ Quantum optimization using QAOA (Qiskit)
 - 📊 Classical baselines (Markowitz, Genetic Algorithm, Simulated Annealing)
 - 📉 Comprehensive risk metrics (VaR, CVaR, Sharpe ratio, etc.)
-- 🤖 LLM-powered portfolio explanations
 - 📓 Interactive Jupyter notebook demo
 
 ## Problem Formulation
@@ -53,8 +52,6 @@ quantum-portfolio-optimization/
 │   │   └── qubo_encoding.py  # Portfolio QUBO formulation
 │   ├── statistics/            # Risk analysis
 │   │   └── risk_metrics.py   # VaR, CVaR, Sharpe, etc.
-│   ├── llm/                   # LLM integration
-│   │   └── explainer.py      # Portfolio explanation generation
 │   └── utils/
 │       ├── data_loader.py    # Yahoo Finance data fetching
 │       └── visualization.py  # Portfolio visualization
@@ -102,7 +99,6 @@ This notebook demonstrates:
 3. Running classical optimization methods
 4. Running QAOA quantum optimization
 5. Comparing results with visualizations
-6. Generating LLM explanations
 
 ## Usage Examples
 
@@ -186,21 +182,6 @@ print(f"Maximum Drawdown: {metrics['max_drawdown']:.2%}")
 print(f"Sharpe Ratio: {metrics['sharpe']:.3f}")
 ```
 
-### 6. Portfolio Explanation with LLM
-
-```python
-from src.llm.explainer import explain_portfolio
-
-# Generate natural language explanation
-explanation = explain_portfolio(
-    weights=weights,
-    tickers=tickers,
-    stats=stats,
-    method='QAOA'
-)
-print(explanation)
-```
-
 ## Risk Metrics Implemented
 
 - **Sharpe Ratio** - Risk-adjusted return measure
@@ -266,7 +247,6 @@ qaoa:
 - ✅ Complete QAOA implementation with QUBO encoding
 - ✅ Multiple classical baselines for fair comparison
 - ✅ Comprehensive risk metrics (VaR, CVaR, Sharpe, etc.)
-- ✅ LLM-powered portfolio explanations
 - ✅ Interactive visualizations (efficient frontier, correlation heatmaps)
 - ✅ Modular, well-documented code structure
 - ✅ Jupyter notebook with full walkthrough

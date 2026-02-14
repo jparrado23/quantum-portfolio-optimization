@@ -145,27 +145,7 @@ print(f"CVaR (95%): {cvar_95:.2%}")
 print(f"Maximum Drawdown: {max_dd:.2%}")
 ```
 
-### 6. LLM Explanation
-
-```python
-from src.llm.explainer import PortfolioExplainer
-
-# Create explainer
-explainer = PortfolioExplainer(use_mock=True)
-
-# Generate explanation
-weights_series = pd.Series(weights, index=tickers)
-explanation = explainer.explain_allocation(
-    weights=weights_series,
-    returns_stats=stats['mean_returns'],
-    risk_stats=stats['volatilities'],
-    method="QAOA"
-)
-
-print(explanation)
-```
-
-### 7. Visualization
+### 6. Visualization
 
 ```python
 from src.utils.visualization import (
