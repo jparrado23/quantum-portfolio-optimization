@@ -68,6 +68,27 @@ quantum-portfolio-optimization/
 └── QUICKSTART.md           # Quick start guide
 ```
 
+## Modeling Depth Improvements
+
+Recent enhancements make the financial modeling assumptions more realistic and better aligned with institutional portfolio construction workflows:
+
+1. **Configurable expected return estimation**
+   - Historical mean
+   - EWMA expected returns for regime sensitivity
+   - CAPM-implied expected returns for market-consistent priors
+
+2. **Configurable covariance estimation**
+   - Sample covariance
+   - EWMA covariance for time-varying risk
+   - Ledoit-Wolf shrinkage for improved stability with correlated assets
+
+3. **Downside-aware optimization and diagnostics**
+   - Max-Sortino optimization
+   - Downside covariance and semi-volatility outputs
+
+4. **Robust optimization objective**
+   - Mean-variance objective with L2 regularization to reduce concentration and improve out-of-sample robustness
+
 ## Key Technical Achievements
 
 ### Quantum Computing
