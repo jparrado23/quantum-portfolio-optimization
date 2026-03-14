@@ -45,10 +45,67 @@ class MarkowitzOptimizer:
         self.mean_returns = np.array(mean_returns)
         self.cov_matrix = np.array(cov_matrix)
         self.risk_free_rate = risk_free_rate
-        self.n_assets = len(self.mean_returns)
         self.asset_names = mean_returns.index if isinstance(mean_returns, pd.Series) else None
+
+        self._validate_inputs()
+
+        # At this point mean_returns has been validated to be 1D
+        self.n_assets = self.mean_returns.shape[0]
         
         logger.info(f"Initialized Markowitz optimizer for {self.n_assets} assets")
+
+    def _validate_inputs(self) -> None:
+        """Validate optimizer inputs to avoid silent numerical issues."""
+        if self.mean_returns.ndim != 1:
+            raise ValueError("mean_returns must be a 1D array-like object")
+
+        n_assets = self.mean_returns.shape[0]
+
+        if self.cov_matrix.shape != (n_assets, n_assets):
+            raise ValueError(
+                f"cov_matrix must have shape ({n_assets}, {n_assets}), "
+                f"got {self.cov_matrix.shape}"
+            )
+
+        if not np.allclose(self.cov_matrix, self.cov_matrix.T, atol=1e-8):
+            raise ValueError("cov_matrix must be symmetric")
+
+    def _build_constraints(self, target_return: Optional[float] = None):
+        """Create optimizer constraints."""
+        constraints = [{'type': 'eq', 'fun': lambda w: np.sum(w) - 1}]
+
+        if target_return is not None:
+            constraints.append({
+                'type': 'ineq',
+                'fun': lambda w: self.portfolio_return(w) - target_return
+            })
+
+        return constraints
+
+    def _get_initial_guess(self, min_weight: float, max_weight: float) -> np.ndarray:
+        """Build a feasible initial point for constrained optimization."""
+        if min_weight * self.n_assets > 1 or max_weight * self.n_assets < 1:
+            raise ValueError(
+                "Infeasible weight bounds. Need min_weight*n_assets <= 1 <= max_weight*n_assets"
+            )
+
+        return np.array([1.0 / self.n_assets] * self.n_assets)
+
+    def _max_feasible_return(self, min_weight: float, max_weight: float) -> float:
+        """Compute max feasible portfolio return under box constraints and full investment."""
+        weights = np.full(self.n_assets, min_weight)
+        remaining = 1.0 - weights.sum()
+
+        sorted_idx = np.argsort(self.mean_returns)[::-1]
+        for idx in sorted_idx:
+            if remaining <= 0:
+                break
+            addable = min(max_weight - weights[idx], remaining)
+            if addable > 0:
+                weights[idx] += addable
+                remaining -= addable
+
+        return self.portfolio_return(weights)
     
     def portfolio_return(self, weights: np.ndarray) -> float:
         """Calculate portfolio expected return."""
@@ -95,15 +152,13 @@ class MarkowitzOptimizer:
             Performance metrics
         """
         # Constraints
-        constraints = [
-            {'type': 'eq', 'fun': lambda w: np.sum(w) - 1}  # weights sum to 1
-        ]
+        constraints = self._build_constraints()
         
         # Bounds for each weight
         bounds = tuple((min_weight, max_weight) for _ in range(self.n_assets))
         
         # Initial guess: equal weights
-        w0 = np.array([1.0 / self.n_assets] * self.n_assets)
+        w0 = self._get_initial_guess(min_weight=min_weight, max_weight=max_weight)
         
         # Optimize
         result = minimize(
@@ -159,22 +214,13 @@ class MarkowitzOptimizer:
             Performance metrics
         """
         # Constraints
-        constraints = [
-            {'type': 'eq', 'fun': lambda w: np.sum(w) - 1}
-        ]
-        
-        # Add return constraint if specified
-        if target_return is not None:
-            constraints.append({
-                'type': 'ineq',
-                'fun': lambda w: self.portfolio_return(w) - target_return
-            })
+        constraints = self._build_constraints(target_return=target_return)
         
         # Bounds
         bounds = tuple((min_weight, max_weight) for _ in range(self.n_assets))
         
         # Initial guess
-        w0 = np.array([1.0 / self.n_assets] * self.n_assets)
+        w0 = self._get_initial_guess(min_weight=min_weight, max_weight=max_weight)
         
         # Optimize
         result = minimize(
@@ -222,9 +268,9 @@ class MarkowitzOptimizer:
         min_weight: float = 0.0
     ) -> Tuple[np.ndarray, dict]:
         """Optimize portfolio for maximum Sortino ratio."""
-        constraints = [{'type': 'eq', 'fun': lambda w: np.sum(w) - 1}]
+        constraints = self._build_constraints()
         bounds = tuple((min_weight, max_weight) for _ in range(self.n_assets))
-        w0 = np.array([1.0 / self.n_assets] * self.n_assets)
+        w0 = self._get_initial_guess(min_weight=min_weight, max_weight=max_weight)
 
         def negative_sortino(weights: np.ndarray) -> float:
             return -self.sortino_ratio(weights, returns)
@@ -264,9 +310,9 @@ class MarkowitzOptimizer:
 
         Objective: maximize mu^T w - risk_aversion * w^T Sigma w - l2_penalty * ||w||^2
         """
-        constraints = [{'type': 'eq', 'fun': lambda w: np.sum(w) - 1}]
+        constraints = self._build_constraints()
         bounds = tuple((min_weight, max_weight) for _ in range(self.n_assets))
-        w0 = np.array([1.0 / self.n_assets] * self.n_assets)
+        w0 = self._get_initial_guess(min_weight=min_weight, max_weight=max_weight)
 
         def objective(weights: np.ndarray) -> float:
             expected_return = self.portfolio_return(weights)
@@ -332,7 +378,7 @@ class MarkowitzOptimizer:
         min_return = self.portfolio_return(min_var_weights)
         
         # Maximum return is putting all weight in best asset (within constraints)
-        max_return = np.max(self.mean_returns) * max_weight
+        max_return = self._max_feasible_return(min_weight=min_weight, max_weight=max_weight)
         
         # Generate target returns
         target_returns = np.linspace(min_return, max_return * 0.95, n_points)
@@ -360,6 +406,103 @@ class MarkowitzOptimizer:
         logger.info(f"Generated efficient frontier with {len(df)} points")
         
         return df
+
+    def optimize_with_turnover_constraint(
+        self,
+        previous_weights: np.ndarray,
+        max_turnover: float,
+        objective: str = "max_sharpe",
+        target_return: Optional[float] = None,
+        max_weight: float = 1.0,
+        min_weight: float = 0.0
+    ) -> Tuple[np.ndarray, dict]:
+        """Optimize portfolio with an L1 turnover constraint.
+
+        Turnover is defined as ``sum(abs(w_t - w_{t-1}))``.
+        """
+        previous_weights = np.asarray(previous_weights, dtype=float)
+        if previous_weights.shape != (self.n_assets,):
+            raise ValueError(
+                f"previous_weights must have shape ({self.n_assets},), got {previous_weights.shape}"
+            )
+        if max_turnover < 0:
+            raise ValueError("max_turnover must be non-negative")
+
+        constraints = self._build_constraints(target_return=target_return)
+        # Use a smooth approximation to the L1 turnover term to avoid
+        # non-differentiability issues with SLSQP's finite-difference gradients.
+        # Approximate |x| by sqrt(x^2 + eps), which is differentiable everywhere.
+        constraints.append({
+            'type': 'ineq',
+            'fun': lambda w, pw=previous_weights, mt=max_turnover: mt - np.sum(
+                np.sqrt((w - pw) ** 2 + 1e-8)
+            )
+        })
+
+        bounds = tuple((min_weight, max_weight) for _ in range(self.n_assets))
+
+        # Construct an initial guess that is feasible (or as close as possible) for the
+        # turnover constraint to improve SLSQP convergence.
+        target_w0 = self._get_initial_guess(min_weight=min_weight, max_weight=max_weight)
+
+        # Start from the usual initial guess if it already satisfies the turnover bound.
+        turnover_to_target = float(np.sum(np.abs(target_w0 - previous_weights)))
+        if max_turnover == 0.0:
+            # No turnover allowed: start exactly from previous weights.
+            w0 = previous_weights.copy()
+        elif turnover_to_target <= max_turnover:
+            w0 = target_w0
+        else:
+            # Blend from previous_weights towards target_w0 so that the L1 turnover
+            # equals max_turnover: w0 = previous + alpha * (target - previous).
+            direction = target_w0 - previous_weights
+            l1_norm = float(np.sum(np.abs(direction)))
+            if l1_norm == 0.0:
+                # target_w0 and previous_weights are identical; just use one of them.
+                w0 = previous_weights.copy()
+            else:
+                alpha = max_turnover / l1_norm
+                # Ensure alpha does not exceed 1.0 (should not in theory, but clip for safety).
+                alpha = max(0.0, min(1.0, alpha))
+                w0 = previous_weights + alpha * direction
+
+        if objective == "max_sharpe":
+            objective_fn = self.negative_sharpe
+        elif objective == "min_variance":
+            objective_fn = self.portfolio_variance
+        else:
+            raise ValueError("objective must be 'max_sharpe' or 'min_variance'")
+
+        result = minimize(
+            objective_fn,
+            w0,
+            method='SLSQP',
+            bounds=bounds,
+            constraints=constraints,
+            options={'maxiter': 1500, 'ftol': 1e-9}
+        )
+
+        if not result.success:
+            logger.warning(f"Optimization warning: {result.message}")
+
+        weights = result.x
+        turnover = float(np.sum(np.abs(weights - previous_weights)))
+        info = {
+            'return': self.portfolio_return(weights),
+            'volatility': self.portfolio_volatility(weights),
+            'sharpe': self.sharpe_ratio(weights),
+            'turnover': turnover,
+            'max_turnover': max_turnover,
+            'objective': objective,
+            'success': result.success,
+            'iterations': result.nit,
+        }
+
+        logger.info(
+            "Turnover-constrained optimization complete: "
+            f"Sharpe={info['sharpe']:.3f}, Turnover={turnover:.3f}"
+        )
+        return weights, info
     
     def get_weights_series(self, weights: np.ndarray) -> pd.Series:
         """Convert weights array to pandas Series with asset names."""

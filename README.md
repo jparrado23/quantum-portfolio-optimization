@@ -178,13 +178,13 @@ print(f"QAOA Sharpe ratio: {result['sharpe']:.3f}")
 from src.statistics.risk_metrics import RiskMetrics
 
 # Calculate comprehensive risk metrics
-risk = RiskMetrics(returns, weights)
+risk = RiskMetrics(returns, risk_free_rate=0.04)
 
-metrics = risk.calculate_all_metrics(confidence_level=0.95)
-print(f"Value at Risk (VaR): {metrics['var']:.2%}")
-print(f"Conditional VaR (CVaR): {metrics['cvar']:.2%}")
-print(f"Maximum Drawdown: {metrics['max_drawdown']:.2%}")
-print(f"Sharpe Ratio: {metrics['sharpe']:.3f}")
+metrics = risk.comprehensive_report(weights)
+print(f"Value at Risk (VaR): {metrics['VaR (95%, Historical)']:.2%}")
+print(f"Conditional VaR (CVaR): {metrics['CVaR (95%)']:.2%}")
+print(f"Maximum Drawdown: {metrics['Maximum Drawdown']:.2%}")
+print(f"Sharpe Ratio: {metrics['Sharpe Ratio']:.3f}")
 ```
 
 ## Advanced Financial Modeling Enhancements
@@ -204,6 +204,10 @@ This repository now supports richer portfolio modeling choices frequently used i
   - Downside covariance and semi-volatility diagnostics
 - **Robust mean-variance optimization**
   - L2-regularized objective to limit concentration and improve out-of-sample stability
+
+- **Transaction-aware optimization**
+  - Turnover-constrained Markowitz optimization to control rebalancing intensity
+  - Supports practical migration from previous holdings under trading limits
 
 These additions are designed to make the experiments more realistic and to reduce sensitivity to noisy input estimates.
 
