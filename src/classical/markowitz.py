@@ -45,10 +45,12 @@ class MarkowitzOptimizer:
         self.mean_returns = np.array(mean_returns)
         self.cov_matrix = np.array(cov_matrix)
         self.risk_free_rate = risk_free_rate
-        self.n_assets = len(self.mean_returns)
         self.asset_names = mean_returns.index if isinstance(mean_returns, pd.Series) else None
 
         self._validate_inputs()
+
+        # At this point mean_returns has been validated to be 1D
+        self.n_assets = self.mean_returns.shape[0]
         
         logger.info(f"Initialized Markowitz optimizer for {self.n_assets} assets")
 
@@ -57,9 +59,11 @@ class MarkowitzOptimizer:
         if self.mean_returns.ndim != 1:
             raise ValueError("mean_returns must be a 1D array-like object")
 
-        if self.cov_matrix.shape != (self.n_assets, self.n_assets):
+        n_assets = self.mean_returns.shape[0]
+
+        if self.cov_matrix.shape != (n_assets, n_assets):
             raise ValueError(
-                f"cov_matrix must have shape ({self.n_assets}, {self.n_assets}), "
+                f"cov_matrix must have shape ({n_assets}, {n_assets}), "
                 f"got {self.cov_matrix.shape}"
             )
 
