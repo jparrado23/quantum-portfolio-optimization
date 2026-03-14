@@ -429,9 +429,14 @@ class MarkowitzOptimizer:
             raise ValueError("max_turnover must be non-negative")
 
         constraints = self._build_constraints(target_return=target_return)
+        # Use a smooth approximation to the L1 turnover term to avoid
+        # non-differentiability issues with SLSQP's finite-difference gradients.
+        # Approximate |x| by sqrt(x^2 + eps), which is differentiable everywhere.
         constraints.append({
             'type': 'ineq',
-            'fun': lambda w: max_turnover - np.sum(np.abs(w - previous_weights))
+            'fun': lambda w, pw=previous_weights, mt=max_turnover: mt - np.sum(
+                np.sqrt((w - pw) ** 2 + 1e-8)
+            )
         })
 
         bounds = tuple((min_weight, max_weight) for _ in range(self.n_assets))
