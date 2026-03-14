@@ -435,7 +435,31 @@ class MarkowitzOptimizer:
         })
 
         bounds = tuple((min_weight, max_weight) for _ in range(self.n_assets))
-        w0 = self._get_initial_guess(min_weight=min_weight, max_weight=max_weight)
+
+        # Construct an initial guess that is feasible (or as close as possible) for the
+        # turnover constraint to improve SLSQP convergence.
+        target_w0 = self._get_initial_guess(min_weight=min_weight, max_weight=max_weight)
+
+        # Start from the usual initial guess if it already satisfies the turnover bound.
+        turnover_to_target = float(np.sum(np.abs(target_w0 - previous_weights)))
+        if max_turnover == 0.0:
+            # No turnover allowed: start exactly from previous weights.
+            w0 = previous_weights.copy()
+        elif turnover_to_target <= max_turnover:
+            w0 = target_w0
+        else:
+            # Blend from previous_weights towards target_w0 so that the L1 turnover
+            # equals max_turnover: w0 = previous + alpha * (target - previous).
+            direction = target_w0 - previous_weights
+            l1_norm = float(np.sum(np.abs(direction)))
+            if l1_norm == 0.0:
+                # target_w0 and previous_weights are identical; just use one of them.
+                w0 = previous_weights.copy()
+            else:
+                alpha = max_turnover / l1_norm
+                # Ensure alpha does not exceed 1.0 (should not in theory, but clip for safety).
+                alpha = max(0.0, min(1.0, alpha))
+                w0 = previous_weights + alpha * direction
 
         if objective == "max_sharpe":
             objective_fn = self.negative_sharpe
