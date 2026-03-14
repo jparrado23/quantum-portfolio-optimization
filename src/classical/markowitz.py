@@ -203,6 +203,103 @@ class MarkowitzOptimizer:
         
         return weights, info
     
+    def downside_deviation(self, weights: np.ndarray, returns: pd.DataFrame) -> float:
+        """Calculate annualized downside deviation for Sortino ratio."""
+        portfolio_returns = returns.values @ weights
+        downside = np.minimum(portfolio_returns, 0)
+        return np.sqrt(np.mean(downside ** 2)) * np.sqrt(252)
+
+    def sortino_ratio(self, weights: np.ndarray, returns: pd.DataFrame) -> float:
+        """Calculate Sortino ratio using downside deviation."""
+        ret = self.portfolio_return(weights)
+        downside_dev = self.downside_deviation(weights, returns)
+        return (ret - self.risk_free_rate) / downside_dev if downside_dev > 0 else 0
+
+    def optimize_max_sortino(
+        self,
+        returns: pd.DataFrame,
+        max_weight: float = 1.0,
+        min_weight: float = 0.0
+    ) -> Tuple[np.ndarray, dict]:
+        """Optimize portfolio for maximum Sortino ratio."""
+        constraints = [{'type': 'eq', 'fun': lambda w: np.sum(w) - 1}]
+        bounds = tuple((min_weight, max_weight) for _ in range(self.n_assets))
+        w0 = np.array([1.0 / self.n_assets] * self.n_assets)
+
+        def negative_sortino(weights: np.ndarray) -> float:
+            return -self.sortino_ratio(weights, returns)
+
+        result = minimize(
+            negative_sortino,
+            w0,
+            method='SLSQP',
+            bounds=bounds,
+            constraints=constraints,
+            options={'maxiter': 1000, 'ftol': 1e-9}
+        )
+
+        if not result.success:
+            logger.warning(f"Optimization warning: {result.message}")
+
+        weights = result.x
+        info = {
+            'return': self.portfolio_return(weights),
+            'volatility': self.portfolio_volatility(weights),
+            'sortino': self.sortino_ratio(weights, returns),
+            'sharpe': self.sharpe_ratio(weights),
+            'success': result.success,
+            'iterations': result.nit
+        }
+        logger.info(f"Max Sortino optimization complete: Sortino={info['sortino']:.3f}")
+        return weights, info
+
+    def optimize_robust_mean_variance(
+        self,
+        risk_aversion: float = 1.0,
+        l2_penalty: float = 0.01,
+        max_weight: float = 1.0,
+        min_weight: float = 0.0
+    ) -> Tuple[np.ndarray, dict]:
+        """Optimize robust mean-variance objective with L2 regularization.
+
+        Objective: maximize mu^T w - risk_aversion * w^T Sigma w - l2_penalty * ||w||^2
+        """
+        constraints = [{'type': 'eq', 'fun': lambda w: np.sum(w) - 1}]
+        bounds = tuple((min_weight, max_weight) for _ in range(self.n_assets))
+        w0 = np.array([1.0 / self.n_assets] * self.n_assets)
+
+        def objective(weights: np.ndarray) -> float:
+            expected_return = self.portfolio_return(weights)
+            variance = self.portfolio_variance(weights)
+            regularization = np.sum(weights ** 2)
+            return -(expected_return - risk_aversion * variance - l2_penalty * regularization)
+
+        result = minimize(
+            objective,
+            w0,
+            method='SLSQP',
+            bounds=bounds,
+            constraints=constraints,
+            options={'maxiter': 1000, 'ftol': 1e-9}
+        )
+
+        if not result.success:
+            logger.warning(f"Optimization warning: {result.message}")
+
+        weights = result.x
+        info = {
+            'return': self.portfolio_return(weights),
+            'volatility': self.portfolio_volatility(weights),
+            'sharpe': self.sharpe_ratio(weights),
+            'objective': -result.fun,
+            'risk_aversion': risk_aversion,
+            'l2_penalty': l2_penalty,
+            'success': result.success,
+            'iterations': result.nit
+        }
+        logger.info(f"Robust mean-variance optimization complete: Objective={info['objective']:.4f}")
+        return weights, info
+
     def efficient_frontier(
         self,
         n_points: int = 50,
@@ -255,7 +352,8 @@ class MarkowitzOptimizer:
                     'volatility': info['volatility'],
                     'sharpe': info['sharpe']
                 })
-            except:
+            except Exception as exc:
+                logger.debug(f"Efficient frontier point failed for target return {target_ret:.4f}: {exc}")
                 continue
         
         df = pd.DataFrame(frontier_data)

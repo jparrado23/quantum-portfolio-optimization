@@ -42,7 +42,12 @@ prices = download_portfolio_data(tickers, start='2020-01-01', end='2025-01-01')
 
 # Calculate returns and statistics
 returns = calculate_returns(prices)
-stats = calculate_statistics(returns, risk_free_rate=0.04)
+stats = calculate_statistics(
+    returns,
+    risk_free_rate=0.04,
+    expected_return_method='ewma',
+    covariance_method='ledoit_wolf'
+)
 
 print(f"Mean returns:\n{stats['mean_returns']}")
 print(f"\nCovariance matrix:\n{stats['cov_matrix']}")
@@ -67,6 +72,27 @@ print(f"Optimal weights:\n{optimizer.get_weights_series(weights)}")
 print(f"\nSharpe ratio: {info['sharpe']:.3f}")
 print(f"Expected return: {info['return']:.2%}")
 print(f"Volatility: {info['volatility']:.2%}")
+```
+
+
+### 2b. Downside-Risk and Robust Optimization
+
+```python
+# Max-Sortino portfolio (downside risk aware)
+sortino_weights, sortino_info = optimizer.optimize_max_sortino(
+    returns=returns,
+    max_weight=0.30
+)
+
+# Robust objective with regularization
+robust_weights, robust_info = optimizer.optimize_robust_mean_variance(
+    risk_aversion=1.5,
+    l2_penalty=0.02,
+    max_weight=0.30
+)
+
+print(f"Sortino ratio: {sortino_info['sortino']:.3f}")
+print(f"Robust objective: {robust_info['objective']:.4f}")
 ```
 
 ### 3. Genetic Algorithm (with Cardinality Constraint)

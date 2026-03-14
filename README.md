@@ -1,6 +1,6 @@
 # Quantum Portfolio Optimization
 
-A research project comparing **classical** and **quantum** approaches to portfolio optimization using real financial data. This implementation demonstrates how quantum computing algorithms like QAOA can be applied to combinatorial financial optimization problems, while benchmarking against traditional methods.
+A research-oriented framework for comparing **classical** and **quantum** portfolio construction methods on real market data. The project combines institutional-grade risk modeling assumptions with QAOA-based combinatorial optimization to evaluate when quantum approaches can be competitive relative to well-established classical baselines.
 
 ## Overview
 
@@ -10,7 +10,7 @@ This project solves the portfolio optimization problem: selecting a subset of as
 - 📈 Real financial data integration (Yahoo Finance API)
 - ⚛️ Quantum optimization using QAOA (Qiskit)
 - 📊 Classical baselines (Markowitz, Genetic Algorithm, Simulated Annealing)
-- 📉 Comprehensive risk metrics (VaR, CVaR, Sharpe ratio, etc.)
+- 📉 Comprehensive risk metrics (VaR, CVaR, Sharpe, Sortino, drawdown, downside risk)
 - 📓 Interactive Jupyter notebook demo
 
 ## Problem Formulation
@@ -110,10 +110,15 @@ from src.utils.data_loader import download_portfolio_data, calculate_returns, ca
 # Download stock prices
 tickers = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META']
 prices = download_portfolio_data(tickers, start='2020-01-01', end='2025-01-01')
-
-# Calculate returns and statistics
 returns = calculate_returns(prices)
-stats = calculate_statistics(returns, risk_free_rate=0.04)
+
+# Example: professional-grade inputs (EWMA returns + shrinkage covariance)
+stats = calculate_statistics(
+    returns,
+    risk_free_rate=0.04,
+    expected_return_method='ewma',
+    covariance_method='ledoit_wolf'
+)
 ```
 
 ### 2. Classical Optimization
@@ -181,6 +186,26 @@ print(f"Conditional VaR (CVaR): {metrics['cvar']:.2%}")
 print(f"Maximum Drawdown: {metrics['max_drawdown']:.2%}")
 print(f"Sharpe Ratio: {metrics['sharpe']:.3f}")
 ```
+
+## Advanced Financial Modeling Enhancements
+
+This repository now supports richer portfolio modeling choices frequently used in professional quant workflows:
+
+- **Expected return estimators**
+  - Historical mean (baseline)
+  - EWMA mean (recency-weighted signal)
+  - CAPM-implied expected returns (beta-based, market-premium anchored)
+- **Covariance estimators**
+  - Sample covariance (classical Markowitz input)
+  - EWMA covariance (time-varying risk)
+  - Ledoit-Wolf shrinkage covariance (more stable in high-dimensional settings)
+- **Downside-risk-aware optimization**
+  - Sortino-ratio portfolio optimization
+  - Downside covariance and semi-volatility diagnostics
+- **Robust mean-variance optimization**
+  - L2-regularized objective to limit concentration and improve out-of-sample stability
+
+These additions are designed to make the experiments more realistic and to reduce sensitivity to noisy input estimates.
 
 ## Risk Metrics Implemented
 

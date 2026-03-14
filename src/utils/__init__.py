@@ -4,6 +4,8 @@ from .data_loader import (
     download_portfolio_data,
     calculate_returns,
     calculate_statistics,
+    estimate_expected_returns,
+    estimate_covariance,
     get_ticker_info,
     save_data,
     load_data
@@ -25,6 +27,8 @@ __all__ = [
     'download_portfolio_data',
     'calculate_returns',
     'calculate_statistics',
+    'estimate_expected_returns',
+    'estimate_covariance',
     'get_ticker_info',
     'save_data',
     'load_data',

@@ -8,6 +8,7 @@ portfolio optimization.
 import pandas as pd
 import numpy as np
 import yfinance as yf
+from sklearn.covariance import LedoitWolf
 from typing import List, Tuple, Optional
 from datetime import datetime
 import logging
@@ -109,7 +110,11 @@ def calculate_returns(
 
 def calculate_statistics(
     returns: pd.DataFrame,
-    risk_free_rate: float = 0.04
+    risk_free_rate: float = 0.04,
+    expected_return_method: str = "historical",
+    covariance_method: str = "sample",
+    ewma_span: int = 60,
+    market_returns: Optional[pd.Series] = None
 ) -> dict:
     """
     Calculate portfolio statistics from returns.
@@ -132,19 +137,37 @@ def calculate_statistics(
     """
     # Annualize returns (assuming daily data: 252 trading days)
     trading_days = 252
-    
-    mean_returns = returns.mean() * trading_days
-    cov_matrix = returns.cov() * trading_days
+
+    mean_returns = estimate_expected_returns(
+        returns=returns,
+        method=expected_return_method,
+        trading_days=trading_days,
+        market_returns=market_returns,
+        risk_free_rate=risk_free_rate
+    )
+    cov_matrix = estimate_covariance(
+        returns=returns,
+        method=covariance_method,
+        trading_days=trading_days,
+        ewma_span=ewma_span
+    )
     corr_matrix = returns.corr()
     volatilities = returns.std() * np.sqrt(trading_days)
+    downside_returns = returns.mask(returns > 0, 0.0)
+    downside_cov = downside_returns.cov() * trading_days
+    semi_volatilities = np.sqrt(np.diag(downside_cov))
     
     stats = {
         'mean_returns': mean_returns,
         'cov_matrix': cov_matrix,
         'corr_matrix': corr_matrix,
         'volatilities': volatilities,
+        'downside_cov_matrix': downside_cov,
+        'semi_volatilities': pd.Series(semi_volatilities, index=returns.columns),
         'trading_days': trading_days,
-        'risk_free_rate': risk_free_rate
+        'risk_free_rate': risk_free_rate,
+        'expected_return_method': expected_return_method,
+        'covariance_method': covariance_method
     }
     
     logger.info(f"Calculated statistics for {len(returns.columns)} assets")
@@ -152,6 +175,89 @@ def calculate_statistics(
     logger.info(f"Average annual volatility: {volatilities.mean():.2%}")
     
     return stats
+
+
+def estimate_expected_returns(
+    returns: pd.DataFrame,
+    method: str = "historical",
+    trading_days: int = 252,
+    market_returns: Optional[pd.Series] = None,
+    risk_free_rate: float = 0.04,
+    ewma_span: int = 60
+) -> pd.Series:
+    """Estimate expected annual returns with configurable estimators.
+
+    Parameters
+    ----------
+    returns : pd.DataFrame
+        Historical asset returns.
+    method : str
+        One of: ``historical``, ``ewma``, ``capm``.
+    trading_days : int
+        Trading days used for annualization.
+    market_returns : pd.Series, optional
+        Market return series required when using ``capm``.
+    risk_free_rate : float
+        Annual risk-free rate used in CAPM.
+    ewma_span : int
+        Exponential weighting span when ``method='ewma'``.
+    """
+    if method == "historical":
+        return returns.mean() * trading_days
+
+    if method == "ewma":
+        exp_mean = returns.ewm(span=ewma_span, adjust=False).mean().iloc[-1]
+        return exp_mean * trading_days
+
+    if method == "capm":
+        if market_returns is None:
+            raise ValueError("market_returns is required when method='capm'")
+
+        market_returns = market_returns.reindex(returns.index).dropna()
+        aligned_returns = returns.loc[market_returns.index]
+        if len(market_returns) < 2:
+            raise ValueError("market_returns must contain at least 2 observations")
+
+        market_excess = market_returns - (risk_free_rate / trading_days)
+        market_premium_annual = market_excess.mean() * trading_days
+        betas = {}
+        for column in aligned_returns.columns:
+            cov = np.cov(aligned_returns[column], market_returns)[0, 1]
+            var_m = np.var(market_returns)
+            betas[column] = cov / var_m if var_m > 0 else 0.0
+
+        betas = pd.Series(betas)
+        return risk_free_rate + betas * market_premium_annual
+
+    raise ValueError("method must be one of: 'historical', 'ewma', 'capm'")
+
+
+def estimate_covariance(
+    returns: pd.DataFrame,
+    method: str = "sample",
+    trading_days: int = 252,
+    ewma_span: int = 60
+) -> pd.DataFrame:
+    """Estimate annualized covariance matrix with configurable estimators."""
+    if method == "sample":
+        return returns.cov() * trading_days
+
+    if method == "ewma":
+        demeaned = returns - returns.mean()
+        alpha = 2 / (ewma_span + 1)
+        cov = demeaned.cov()
+        for i in range(1, len(demeaned)):
+            x = demeaned.iloc[i].values.reshape(-1, 1)
+            cov = (1 - alpha) * cov + alpha * (x @ x.T)
+        return pd.DataFrame(cov, index=returns.columns, columns=returns.columns) * trading_days
+
+    if method == "ledoit_wolf":
+        lw = LedoitWolf()
+        lw.fit(returns.values)
+        cov = lw.covariance_ * trading_days
+        return pd.DataFrame(cov, index=returns.columns, columns=returns.columns)
+
+    raise ValueError("method must be one of: 'sample', 'ewma', 'ledoit_wolf'")
 
 
 def get_ticker_info(tickers: List[str]) -> pd.DataFrame:
